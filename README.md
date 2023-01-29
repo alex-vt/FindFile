@@ -50,7 +50,13 @@ Info keys:
 
 ## Installation
 
-### Linux, option 1: install to /bin
+### From release
+
+See [release notes](https://github.com/alex-vt/FindFile/releases)
+
+### Build & install
+
+#### Linux, option 1: install to /bin
 
 ```sh
 git clone https://github.com/alex-vt/FindFile.git
@@ -59,7 +65,7 @@ cd FindFile/
 sudo cp build/bin/native/releaseExecutable/FindFile.kexe /bin/ff
 ```
 
-### Linux, option 2: use alias
+#### Linux, option 2: use alias
 
 ```sh
 git clone https://github.com/alex-vt/FindFile.git
