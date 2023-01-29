@@ -39,7 +39,7 @@ Filter ${STYLE_GRAY}keys:${STYLE_NONE}
 Open ${STYLE_GRAY}keys:${STYLE_NONE}
     -f${STYLE_GRAY}:${STYLE_NONE} file manager ${STYLE_GRAY}to be used to open${STYLE_NONE} directory containing result ${STYLE_GRAY}file${STYLE_NONE}
 Info ${STYLE_GRAY}keys:${STYLE_NONE}
-    -i${STYLE_GRAY}:${STYLE_NONE} info  ${STYLE_GRAY}about      ${STYLE_NONE}modified times ${STYLE_GRAY}and${STYLE_NONE} sizes ${STYLE_GRAY}in front of results${STYLE_NONE}
+    -i${STYLE_GRAY}:${STYLE_NONE} info  ${STYLE_GRAY}about ${STYLE_NONE}modified times ${STYLE_GRAY}and${STYLE_NONE} sizes ${STYLE_GRAY}for results,${STYLE_NONE} -I${STYLE_GRAY}:${STYLE_NONE} raw paths
     -p${STYLE_GRAY}:${STYLE_NONE} print ${STYLE_GRAY}underlying ${STYLE_NONE}find command
     -h${STYLE_GRAY}:${STYLE_NONE} help  ${STYLE_GRAY}information${STYLE_NONE}"""
 
@@ -215,6 +215,7 @@ private fun doNewSearch(args: Array<String>) {
     val resultPathsText = StringBuilder("")
     val resultDigitPlaceCount = ("[" + searchResultPaths.size.toString() + "]")
         .withRangeHighlighted(STYLE_BOLD).withRangeHighlighted(STYLE_BLUE).length
+    val isRawRaths = args.contains("-I")
     searchResultPaths.mapIndexed { index, resultLine ->
         val filePath = resultLine.substring(resultLine.indexOf('/'))
         val highlightedLine = resultLine.withRangeHighlighted(
@@ -230,7 +231,11 @@ private fun doNewSearch(args: Array<String>) {
         val paddedResultNumber =
             "[${(index + 1).toString().withRangeHighlighted(STYLE_BOLD).withRangeHighlighted(STYLE_BLUE)}]"
                 .padStart(resultDigitPlaceCount, '·')
-        println("$paddedResultNumber $highlightedLine")
+        if (isRawRaths) {
+            println(filePath)
+        } else {
+            println("$paddedResultNumber $highlightedLine")
+        }
         resultPathsText.appendLine(filePath)
     }
     val isOpeningContainingFolder = args.contains("-f")

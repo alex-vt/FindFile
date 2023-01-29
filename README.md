@@ -42,7 +42,7 @@ Filter keys:
 Open keys:
     -f: file manager to be used to open directory containing result file
 Info keys:
-    -i: info  about      modified times and sizes in front of results
+    -i: info  about modified times and sizes for results, -I: raw paths
     -p: print underlying find command
     -h: help  information
 ```
