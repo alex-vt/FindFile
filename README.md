@@ -10,7 +10,8 @@ File search util for command line, used similarly to online search engines
 * Included words are highlighted in results
 * Including words in sequence by default, and optionally in any order
 * Results are numbered. Pass numbers of results to open them
-* Can open containing folders of results
+* Can quote paths, or containing folder paths, for using as args
+* Shows size of found folders
 * Hidden files and build folders are excluded by default
 * Can show equivalent `find` command
 * Less visually important text is grayed out
@@ -39,6 +40,7 @@ Sort args (one at a time):
 Filter args:
     -a: include all hidden files, hidden and build directories
     -r: include reordered path parts to search, not only in given order
+    -d: search  directories instead of files, will not go into the found ones
 Select args (one at a time):
     -q (-Q): select quoted unformatted result file (containing directory) path
 Info args:

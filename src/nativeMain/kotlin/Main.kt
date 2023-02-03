@@ -36,6 +36,7 @@ Sort ${STYLE_GRAY}args (one at a time):${STYLE_NONE}
 Filter ${STYLE_GRAY}args:${STYLE_NONE}
     -a${STYLE_GRAY}: include${STYLE_NONE} all ${STYLE_GRAY}hidden files, hidden and build directories${STYLE_NONE}
     -r${STYLE_GRAY}: include${STYLE_NONE} reordered path parts ${STYLE_GRAY}to search, not only in given order${STYLE_NONE}
+    -d${STYLE_GRAY}: search${STYLE_NONE}  directories ${STYLE_GRAY}instead of files, will not go into the found ones${STYLE_NONE}
 Select ${STYLE_GRAY}args (one at a time):${STYLE_NONE}
     -q ${STYLE_GRAY}(${STYLE_NONE}-Q${STYLE_GRAY}): select${STYLE_NONE} quoted ${STYLE_GRAY}unformatted result${STYLE_NONE} file ${STYLE_GRAY}(containing${STYLE_NONE} directory${STYLE_GRAY}) ${STYLE_NONE}path
 Info ${STYLE_GRAY}args:${STYLE_NONE}
@@ -152,37 +153,35 @@ private fun doNewSearch(args: Array<String>) {
     val sortingDirectionParam =
         if (args.any { it in listOf("-N", "-S", "-m") }) "-r " else ""
 
-    val fileMetadataDateFormat = "%TY-%Tm-%Td %TH:%TM:%.2TS "
-    val fileDateStringLength = "1970-01-01 00:00:00 ".length
-
-    val fileMetadataSizeFormat = "%12sᴮ "
-    val fileSizeStringLength = "111222333444ᴮ ".length
-
-    val fileMetadataStringLength = fileDateStringLength + fileSizeStringLength
     val skipCharactersSortArg =
         when {
             args.any { it in listOf("-n", "-N") } -> {
-                "-t ':' -k 3.${fileSizeStringLength + 2} " // file size in column 3, skip seconds
+                "-k 4,${Int.MAX_VALUE}" // file name is columns 4 and on
             }
 
             args.any { it in listOf("-s", "-S") } -> {
-                "-n -k 3 " // file size is column 3
+                "-k 1 -n" // file size is column 1, sort as numbers
             }
 
             else -> {
-                "-k 1 " // modification time is column 1
+                "-k 2,3 " // modification time is columns 2, 3
             }
         }
 
     val isShowingFileMetadata = args.contains("-i")
-    val cutMetadataCommand = if (isShowingFileMetadata) "" else " | cut -c${fileMetadataStringLength + 3}-"
+    val cutMetadataCommand = if (isShowingFileMetadata) "" else " | cut -d':' -f2- | cut -c7-"
+
+    val isSearchingFolders = args.contains("-d")
+    val searchType = if (isSearchingFolders) "d" else "f"
+    val pruning = if (isSearchingFolders) " -prune" else ""
 
     val searchFoldersJoined = searchFolders.joinToString(separator = " ")
     val terminalCommand =
         "find $searchFoldersJoined" +
-                " -type f $includedPathQuery$customExclusions$defaultExclusion" +
-                " -printf \"$fileMetadataDateFormat$fileMetadataSizeFormat%p\\n\" 2>/dev/null" +
-                " | sort -u $sortingDirectionParam$skipCharactersSortArg$cutMetadataCommand"
+                " -type $searchType $includedPathQuery$customExclusions$defaultExclusion" +
+                "$pruning 2>/dev/null" +
+                " -exec du -b -s --time --time-style=\"+%Y-%m-%d %H:%M:%S\" {} +" +
+                " | sort $sortingDirectionParam$skipCharactersSortArg$cutMetadataCommand"
 
     val searchResultPaths = executeCommand(terminalCommand).trimEnd().lines().filter { line ->
         line.contains("/")
@@ -193,7 +192,9 @@ private fun doNewSearch(args: Array<String>) {
     val isFilePaths = args.contains("-q")
     val isContainingFolderPaths = args.contains("-Q")
     val isQuotedPath = isFilePaths || isContainingFolderPaths
-    searchResultPaths.mapIndexed { index, resultLine ->
+    searchResultPaths.map {
+        it.withSizeAndTimeReformatted()
+    }.mapIndexed { index, resultLine ->
         val filePath = resultLine.substring(resultLine.indexOf('/')).run {
             if (isContainingFolderPaths) {
                 replaceAfterLast("/", "")
@@ -225,6 +226,22 @@ private fun doNewSearch(args: Array<String>) {
         println("${STYLE_GRAY}Used command: $terminalCommand${STYLE_NONE}")
     }
 }
+
+private fun String.withSizeAndTimeReformatted(): String {
+    if (startsWith("/")) return this // no attributes
+    val attributesString = substringBefore('/')
+    val path = removePrefix(attributesString)
+    val attributes = attributesString.split('\t')
+    val size = attributes[0].trim()
+    val date = attributes[1].trim()
+    val sizePadding = 15
+    return "$date ${size.groupedThousands().padStart(sizePadding, ' ')}ᴮ $path"
+}
+
+private fun String.groupedThousands(separator: Char = '\''): String =
+    reversed()
+        .chunked(3).joinToString(separator = separator.toString())
+        .reversed()
 
 private fun String.getLongestPrefixOf(prefixes: List<String>) =
     prefixes.filter { startsWith(it) }.maxByOrNull { it.length } ?: ""
