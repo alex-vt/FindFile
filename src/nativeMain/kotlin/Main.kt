@@ -21,25 +21,25 @@ private val helpInfo = """FindFile, a file search utility used similarly to onli
     Searches files containing given path parts, in $defaultFolder by default.
     Excludes results containing any of path parts with leading dashes.
     Shows results in a numbered list of full paths.
-    Can open results by given numbers. ${STYLE_GRAY}Mind that results may change.
+    Can select results by given numbers. ${STYLE_GRAY}Mind that results may change.
     * Asterisks around path parts are optional, are used automatically.
     Directories to search in, excluded parts and result numbers are optional.
     Default directory can be set in FF_DEFAULT_DIR environment variable.
-    Use keys separately, like -p -i -n (-pin is excluded as a path part).${STYLE_NONE}
+    Use args separately, like -p -i -n (-pin is excluded as a path part).${STYLE_NONE}
 Usage:
     ff <include>
     ff <dir> <dir> <include> <include> -<exclude> -<exclude> - <result_number>
-Sort ${STYLE_GRAY}keys (one at a time):${STYLE_NONE}
+Sort ${STYLE_GRAY}args (one at a time):${STYLE_NONE}
     -n ${STYLE_GRAY}(${STYLE_NONE}-N${STYLE_GRAY}):${STYLE_NONE} sort ${STYLE_GRAY}by${STYLE_NONE}  name           ${STYLE_GRAY}a to Z        (Z to a)${STYLE_NONE}
     -s ${STYLE_GRAY}(${STYLE_NONE}-S${STYLE_GRAY}):${STYLE_NONE} sort ${STYLE_GRAY}by${STYLE_NONE}  size           ${STYLE_GRAY}small to big  (big to small)${STYLE_NONE}
     -m ${STYLE_GRAY}(${STYLE_NONE}-M${STYLE_GRAY}):${STYLE_NONE} sort ${STYLE_GRAY}by${STYLE_NONE}  modified time  ${STYLE_GRAY}new to old    (old to new, default)${STYLE_NONE}
-Filter ${STYLE_GRAY}keys:${STYLE_NONE}
+Filter ${STYLE_GRAY}args:${STYLE_NONE}
     -a${STYLE_GRAY}: include${STYLE_NONE} all ${STYLE_GRAY}hidden files, hidden and build directories${STYLE_NONE}
     -r${STYLE_GRAY}: include${STYLE_NONE} reordered path parts ${STYLE_GRAY}to search, not only in given order${STYLE_NONE}
-Open ${STYLE_GRAY}keys:${STYLE_NONE}
-    -f${STYLE_GRAY}:${STYLE_NONE} file manager ${STYLE_GRAY}to be used to open${STYLE_NONE} directory containing result ${STYLE_GRAY}file${STYLE_NONE}
-Info ${STYLE_GRAY}keys:${STYLE_NONE}
-    -i${STYLE_GRAY}:${STYLE_NONE} info  ${STYLE_GRAY}about ${STYLE_NONE}modified times ${STYLE_GRAY}and${STYLE_NONE} sizes ${STYLE_GRAY}for results,${STYLE_NONE} -I${STYLE_GRAY}:${STYLE_NONE} raw paths
+Select ${STYLE_GRAY}args (one at a time):${STYLE_NONE}
+    -q ${STYLE_GRAY}(${STYLE_NONE}-Q${STYLE_GRAY}): select${STYLE_NONE} quoted ${STYLE_GRAY}unformatted result${STYLE_NONE} file ${STYLE_GRAY}(containing${STYLE_NONE} directory${STYLE_GRAY}) ${STYLE_NONE}path
+Info ${STYLE_GRAY}args:${STYLE_NONE}
+    -i${STYLE_GRAY}:${STYLE_NONE} info  ${STYLE_GRAY}about ${STYLE_NONE}modified times ${STYLE_GRAY}and${STYLE_NONE} sizes ${STYLE_GRAY}for results${STYLE_NONE}
     -p${STYLE_GRAY}:${STYLE_NONE} print ${STYLE_GRAY}underlying ${STYLE_NONE}find command
     -h${STYLE_GRAY}:${STYLE_NONE} help  ${STYLE_GRAY}information${STYLE_NONE}"""
 
@@ -79,30 +79,6 @@ private fun executeCommand(
     }
 
     return if (trim) stdout.trimEnd() else stdout
-}
-
-private fun openResults(
-    results: String,
-    resultArgs: Array<String>,
-    openContainingFolder: Boolean = false
-) {
-    val lines = results.lines()
-    resultArgs.filterNot { it.startsWith("-") }.map { it.toInt() }.forEach { resultNumber ->
-        val fullPath = lines.getOrNull(resultNumber - 1)
-        if (!fullPath.isNullOrBlank()) {
-            val pathToOpen =
-                if (openContainingFolder) {
-                    fullPath.replaceAfterLast("/", "")
-                } else {
-                    fullPath
-                }
-            val openCommand = "xdg-open"
-            println("Opening [${STYLE_BOLD}$resultNumber${STYLE_NONE}]: ${STYLE_GRAY}$openCommand${STYLE_NONE} \"$pathToOpen\"")
-            executeCommand("$openCommand \"$pathToOpen\"", redirectStderr = true, detach = true)
-        } else {
-            println("${"Error:".highlighted(STYLE_RED)} No result $resultNumber to open.")
-        }
-    }
 }
 
 private fun String.isSearchFolder() =
@@ -212,12 +188,19 @@ private fun doNewSearch(args: Array<String>) {
         line.contains("/")
     }
 
-    val resultPathsText = StringBuilder("")
     val resultDigitPlaceCount = ("[" + searchResultPaths.size.toString() + "]")
         .withRangeHighlighted(STYLE_BOLD).withRangeHighlighted(STYLE_BLUE).length
-    val isRawRaths = args.contains("-I")
+    val isFilePaths = args.contains("-q")
+    val isContainingFolderPaths = args.contains("-Q")
+    val isQuotedPath = isFilePaths || isContainingFolderPaths
     searchResultPaths.mapIndexed { index, resultLine ->
-        val filePath = resultLine.substring(resultLine.indexOf('/'))
+        val filePath = resultLine.substring(resultLine.indexOf('/')).run {
+            if (isContainingFolderPaths) {
+                replaceAfterLast("/", "")
+            } else {
+                this
+            }
+        }
         val highlightedLine = resultLine.withRangeHighlighted(
             STYLE_GRAY,
             startPosition = 0,
@@ -231,15 +214,12 @@ private fun doNewSearch(args: Array<String>) {
         val paddedResultNumber =
             "[${(index + 1).toString().withRangeHighlighted(STYLE_BOLD).withRangeHighlighted(STYLE_BLUE)}]"
                 .padStart(resultDigitPlaceCount, '·')
-        if (isRawRaths) {
-            println(filePath)
+        if (isQuotedPath) {
+            println("\"$filePath\"")
         } else {
             println("$paddedResultNumber $highlightedLine")
         }
-        resultPathsText.appendLine(filePath)
     }
-    val isOpeningContainingFolder = args.contains("-f")
-    openResults(resultPathsText.toString(), resultNumberArgs.toTypedArray(), isOpeningContainingFolder)
     val isPrintUnderlyingCommand = args.contains("-p")
     if (isPrintUnderlyingCommand) {
         println("${STYLE_GRAY}Used command: $terminalCommand${STYLE_NONE}")

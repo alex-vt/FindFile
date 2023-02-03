@@ -24,25 +24,25 @@ File search util for command line, used similarly to online search engines
     Searches files containing given path parts, in ~ by default.
     Excludes results containing any of path parts with leading dashes.
     Shows results in a numbered list of full paths.
-    Can open results by given numbers. Mind that results may change.
+    Can select results by given numbers. Mind that results may change.
     * Asterisks around path parts are optional, are used automatically.
     Directories to search in, excluded parts and result numbers are optional.
     Default directory can be set in FF_DEFAULT_DIR environment variable.
-    Use keys separately, like -p -i -n (-pin is excluded as a path part).
+    Use args separately, like -p -i -n (-pin is excluded as a path part).
 Usage:
     ff <include>
     ff <dir> <dir> <include> <include> -<exclude> -<exclude> - <result_number>
-Sort keys (one at a time):
+Sort args (one at a time):
     -n (-N): sort by  name           a to Z        (Z to a)
     -s (-S): sort by  size           small to big  (big to small)
     -m (-M): sort by  modified time  new to old    (old to new, default)
-Filter keys:
+Filter args:
     -a: include all hidden files, hidden and build directories
     -r: include reordered path parts to search, not only in given order
-Open keys:
-    -f: file manager to be used to open directory containing result file
-Info keys:
-    -i: info  about modified times and sizes for results, -I: raw paths
+Select args (one at a time):
+    -q (-Q): select quoted unformatted result file (containing directory) path
+Info args:
+    -i: info  about modified times and sizes for results
     -p: print underlying find command
     -h: help  information
 ```
