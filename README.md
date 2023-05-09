@@ -9,8 +9,9 @@ File search util for command line, used similarly to online search engines
 * Search query structure: `include` `words` and `-exclude` `-these` `-ones`
 * Included words are highlighted in results
 * Including words in sequence by default, and optionally in any order
-* Results are numbered. Pass numbers of results to open them
+* Results are numbered. Pass numbers of results to select them
 * Can quote paths, or containing folder paths, for using as args
+* Can open all or selected results, or their containing folders
 * Shows size of found folders
 * Hidden files and build folders are excluded by default
 * Can show equivalent `find` command
@@ -29,10 +30,10 @@ File search util for command line, used similarly to online search engines
     * Asterisks around path parts are optional, are used automatically.
     Directories to search in, excluded parts and result numbers are optional.
     Default directory can be set in FF_DEFAULT_DIR environment variable.
-    Use args separately, like -p -i -n (-pin is excluded as a path part).
+    Use args separately, like -p -i -n (-pin is treated as excluded path part).
 Usage:
     ff <include>
-    ff <dir> <dir> <include> <include> -<exclude> -<exclude> - <result_number>
+    ff <dir> <dir> <include> <include> -<exclude> -<exclude> -<result_number>
 Sort args (one at a time):
     -n (-N): sort by  name           a to Z        (Z to a)
     -s (-S): sort by  size           small to big  (big to small)
@@ -43,6 +44,7 @@ Filter args:
     -d: search  directories instead of files, will not go into the found ones
 Select args (one at a time):
     -q (-Q): select quoted unformatted result file (containing directory) path
+    -o (-O): select quoted and open each listed file (containing directory)
 Info args:
     -i: info  about modified times and sizes for results
     -p: print underlying find command
@@ -75,4 +77,4 @@ Restart terminals for `ff` to take effect.
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE) license.

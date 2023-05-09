@@ -11,7 +11,6 @@ private val defaultFolder =
 
 private const val STYLE_NONE = "\u001B[0m"
 private const val STYLE_BOLD = "\u001B[1m"
-private const val STYLE_RED = "\u001B[31m"
 private const val STYLE_YELLOW = "\u001B[33m"
 private const val STYLE_BLUE = "\u001B[94m"
 private const val STYLE_GRAY = "\u001B[37m"
@@ -25,10 +24,10 @@ private val helpInfo = """FindFile, a file search utility used similarly to onli
     * Asterisks around path parts are optional, are used automatically.
     Directories to search in, excluded parts and result numbers are optional.
     Default directory can be set in FF_DEFAULT_DIR environment variable.
-    Use args separately, like -p -i -n (-pin is excluded as a path part).${STYLE_NONE}
+    Use args separately, like -p -i -n (-pin is treated as excluded path part).${STYLE_NONE}
 Usage:
     ff <include>
-    ff <dir> <dir> <include> <include> -<exclude> -<exclude> - <result_number>
+    ff <dir> <dir> <include> <include> -<exclude> -<exclude> -<result_number>
 Sort ${STYLE_GRAY}args (one at a time):${STYLE_NONE}
     -n ${STYLE_GRAY}(${STYLE_NONE}-N${STYLE_GRAY}):${STYLE_NONE} sort ${STYLE_GRAY}by${STYLE_NONE}  name           ${STYLE_GRAY}a to Z        (Z to a)${STYLE_NONE}
     -s ${STYLE_GRAY}(${STYLE_NONE}-S${STYLE_GRAY}):${STYLE_NONE} sort ${STYLE_GRAY}by${STYLE_NONE}  size           ${STYLE_GRAY}small to big  (big to small)${STYLE_NONE}
@@ -39,6 +38,7 @@ Filter ${STYLE_GRAY}args:${STYLE_NONE}
     -d${STYLE_GRAY}: search${STYLE_NONE}  directories ${STYLE_GRAY}instead of files, will not go into the found ones${STYLE_NONE}
 Select ${STYLE_GRAY}args (one at a time):${STYLE_NONE}
     -q ${STYLE_GRAY}(${STYLE_NONE}-Q${STYLE_GRAY}): select${STYLE_NONE} quoted ${STYLE_GRAY}unformatted result${STYLE_NONE} file ${STYLE_GRAY}(containing${STYLE_NONE} directory${STYLE_GRAY}) ${STYLE_NONE}path
+    -o ${STYLE_GRAY}(${STYLE_NONE}-O${STYLE_GRAY}): select quoted and ${STYLE_NONE}open${STYLE_GRAY} each listed${STYLE_NONE} file ${STYLE_GRAY}(containing${STYLE_NONE} directory${STYLE_GRAY})${STYLE_NONE}
 Info ${STYLE_GRAY}args:${STYLE_NONE}
     -i${STYLE_GRAY}:${STYLE_NONE} info  ${STYLE_GRAY}about ${STYLE_NONE}modified times ${STYLE_GRAY}and${STYLE_NONE} sizes ${STYLE_GRAY}for results${STYLE_NONE}
     -p${STYLE_GRAY}:${STYLE_NONE} print ${STYLE_GRAY}underlying ${STYLE_NONE}find command
@@ -98,7 +98,6 @@ private fun doNewSearch(args: Array<String>) {
     val parentFolder = executeCommand("echo \$(cd ../ && pwd)")
 
     val searchFolders = args
-        .takeWhile { it != "-" }
         .filter { it.isSearchFolder() }
         .run { takeIf { it.isNotEmpty() } ?: listOf(defaultFolder) }
         .map { it.resolvePrefixFolder("~", homeFolder) }
@@ -107,15 +106,12 @@ private fun doNewSearch(args: Array<String>) {
         .map { it.addTrailingSlash() }
 
     val pathArgs = args
-        .takeWhile { it != "-" }
         .filterNot { it.startsWith("/") }
         .flatMap { arg -> arg.split("[^\\w-_/.*]+".toRegex()) }
         .filter { it.isNotEmpty() }
-    val resultNumberArgs = args
-        .dropWhile { it != "-" }
-        .drop(1) // :
-        .flatMap { arg -> arg.split("[^\\w-_]+".toRegex()) }
-        .filter { it.all { it.isDigit() } }
+    val selectedResultIndices = args
+        .filter { it.length > 1 && it.first() == '-' && it.drop(1).all { it.isDigit() } }
+        .map { it.removePrefix("-").toInt() - 1 } // natural count 1+ to index 0+
 
     val includedPathParts = pathArgs
         .filterNot { it.startsWith("-") }
@@ -189,8 +185,9 @@ private fun doNewSearch(args: Array<String>) {
 
     val resultDigitPlaceCount = ("[" + searchResultPaths.size.toString() + "]")
         .withRangeHighlighted(STYLE_BOLD).withRangeHighlighted(STYLE_BLUE).length
-    val isFilePaths = args.contains("-q")
-    val isContainingFolderPaths = args.contains("-Q")
+    val isFilePaths = args.contains("-q") || args.contains("-o")
+    val isContainingFolderPaths = args.contains("-Q") || args.contains("-O")
+    val isOpenCommand = args.contains("-o") || args.contains("-O")
     val isQuotedPath = isFilePaths || isContainingFolderPaths
     searchResultPaths.map {
         it.withSizeAndTimeReformatted()
@@ -215,10 +212,19 @@ private fun doNewSearch(args: Array<String>) {
         val paddedResultNumber =
             "[${(index + 1).toString().withRangeHighlighted(STYLE_BOLD).withRangeHighlighted(STYLE_BLUE)}]"
                 .padStart(resultDigitPlaceCount, '·')
-        if (isQuotedPath) {
-            println("\"$filePath\"")
-        } else {
-            println("$paddedResultNumber $highlightedLine")
+        val isLineShown =
+            index in selectedResultIndices || selectedResultIndices.isEmpty()
+        val quotedPath = "\"$filePath\""
+        if (isLineShown) {
+            if (isQuotedPath) {
+                println(quotedPath)
+            } else {
+                println("$paddedResultNumber $highlightedLine")
+            }
+            if (isOpenCommand) {
+                val openCommand = "open $quotedPath &"
+                executeCommand(openCommand, redirectStderr = true, detach = true)
+            }
         }
     }
     val isPrintUnderlyingCommand = args.contains("-p")
@@ -250,10 +256,7 @@ private fun List<String>.getExcludedParts() =
     filter { it.startsWith("-") }
         .filter { it.length > 2 }
         .map { it.removePrefix("-").lowercase() }
-
-
-private fun String.highlighted(terminalTextColor: String) =
-    withWordsHighlighted(listOf(this), terminalTextColor)
+        .filterNot { it.all { it.isDigit() } } // those are selected result numbers
 
 private fun String.withRangeHighlighted(
     terminalTextColor: String, endColor: String = STYLE_NONE,
