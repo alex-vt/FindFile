@@ -47,6 +47,7 @@ Select args (one at a time):
     -o (-O): select quoted and open each listed file (containing directory)
 Info args:
     -i: info  about modified times and sizes for results
+    -f (-F):  show as  file:// links  for paths that need escaping  (always)
     -p: print underlying find command
     -h: help  information
 ```

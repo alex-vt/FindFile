@@ -1,5 +1,5 @@
 plugins {
-    kotlin("multiplatform") version "1.7.21"
+    kotlin("multiplatform") version "1.9.20"
 }
 
 group = "com.alexvt.findfile"
@@ -29,7 +29,7 @@ kotlin {
     sourceSets {
         val nativeMain by getting {
             dependencies {
-                //none
+                implementation("net.thauvin.erik.urlencoder:urlencoder-lib:1.4.0")
             }
         }
         val nativeTest by getting

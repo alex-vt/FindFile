@@ -2,9 +2,12 @@
 // SPDX-FileCopyrightText: © 2022-2023 Oleksii Kovtun <alexvt.com>
 // SPDX-License-Identifier: MIT
 import kotlinx.cinterop.*
+import net.thauvin.erik.urlencoder.UrlEncoderUtil
 import platform.posix.*
 
 private const val DEFAULT_DIR_ENV_VAR_NAME = "FF_DEFAULT_DIR"
+
+@OptIn(ExperimentalForeignApi::class)
 private val defaultFolder =
     getenv(DEFAULT_DIR_ENV_VAR_NAME)?.toKString()?.takeIf { it.isNotBlank() }
         ?: "~"
@@ -41,6 +44,7 @@ Select ${STYLE_GRAY}args (one at a time):${STYLE_NONE}
     -o ${STYLE_GRAY}(${STYLE_NONE}-O${STYLE_GRAY}): select quoted and ${STYLE_NONE}open${STYLE_GRAY} each listed${STYLE_NONE} file ${STYLE_GRAY}(containing${STYLE_NONE} directory${STYLE_GRAY})${STYLE_NONE}
 Info ${STYLE_GRAY}args:${STYLE_NONE}
     -i${STYLE_GRAY}:${STYLE_NONE} info  ${STYLE_GRAY}about ${STYLE_NONE}modified times ${STYLE_GRAY}and${STYLE_NONE} sizes ${STYLE_GRAY}for results${STYLE_NONE}
+    -f ${STYLE_GRAY}(${STYLE_NONE}-F${STYLE_GRAY}):  show as${STYLE_NONE}  file://${STYLE_GRAY} links  for paths that need escaping  (always)${STYLE_NONE}
     -p${STYLE_GRAY}:${STYLE_NONE} print ${STYLE_GRAY}underlying ${STYLE_NONE}find command
     -h${STYLE_GRAY}:${STYLE_NONE} help  ${STYLE_GRAY}information${STYLE_NONE}"""
 
@@ -62,18 +66,23 @@ private fun executeCommand(
     detach: Boolean = false,
 ): String {
     val commandToExecute = if (redirectStderr) "$command 2>&1" else command
+
+    @OptIn(ExperimentalForeignApi::class)
     val fp = popen(commandToExecute, "r") ?: error("Failed to run command: $command")
 
     val stdout = buildString {
         if (!detach) {
             val buffer = ByteArray(4096)
             while (true) {
+                @OptIn(ExperimentalForeignApi::class)
                 val input = fgets(buffer.refTo(0), buffer.size, fp) ?: break
+                @OptIn(ExperimentalForeignApi::class)
                 append(input.toKString())
             }
         }
     }
 
+    @OptIn(ExperimentalForeignApi::class)
     val status = pclose(fp)
     if (status != 0) {
         error("Command `$command` failed with status $status${if (redirectStderr) ": $stdout" else ""}")
@@ -189,6 +198,8 @@ private fun doNewSearch(args: Array<String>) {
     val isContainingFolderPaths = args.contains("-Q") || args.contains("-O")
     val isOpenCommand = args.contains("-o") || args.contains("-O")
     val isQuotedPath = isFilePaths || isContainingFolderPaths
+    val isFileLinksOnDemand = args.contains("-f")
+    val isFileLinksAlways = args.contains("-F")
     searchResultPaths.map {
         it.withSizeAndTimeReformatted()
     }.mapIndexed { index, resultLine ->
@@ -199,14 +210,18 @@ private fun doNewSearch(args: Array<String>) {
                 this
             }
         }
-        val highlightedLine = resultLine.withRangeHighlighted(
+        val fileLinkLine = resultLine.asFileLink(
+            isOnDemand = isFileLinksOnDemand,
+            isAlways = isFileLinksAlways,
+        )
+        val highlightedLine = fileLinkLine.withRangeHighlighted(
             STYLE_GRAY,
             startPosition = 0,
-            endPositionExclusive = resultLine.indexOf('/') +
-                    filePath.getLongestPrefixOf(searchFolders).length
+            endPositionExclusive = fileLinkLine.indexAfterFirstOf("file:///", "/") - 1
+                    + filePath.getLongestPrefixOf(searchFolders).length
         ).withWordsHighlighted(
             includedPathParts, STYLE_YELLOW,
-            minPosition = resultLine.indexOf('/'),
+            minPosition = fileLinkLine.indexAfterFirstOf("file:///", "/") - 1,
             areWordsInSequence = !isAnyPathPartsOrder
         )
         val paddedResultNumber =
@@ -291,3 +306,19 @@ private fun String.withWordsHighlighted(
     }
     return highlightedLine.toString()
 }
+
+private fun String.asFileLink(isOnDemand: Boolean, isAlways: Boolean): String {
+    val escaped = take(indexOf('/')) + UrlEncoderUtil.encode(source = drop(indexOf('/')), allow = "/")
+    return if (isAlways || isOnDemand && escaped != this) {
+        "${take(indexOf('/'))}file://${escaped.drop(indexOf('/'))}"
+    } else {
+        this
+    }
+}
+
+private fun String.indexAfterFirstOf(vararg part: String): Int =
+    part.map {
+        indexOf(it).run {
+            if (this < 0) this else this + it.length
+        }
+    }.dropWhile { it < 0 }.firstOrNull() ?: -1
