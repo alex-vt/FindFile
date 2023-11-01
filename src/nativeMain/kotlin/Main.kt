@@ -62,10 +62,10 @@ private fun isHelpMode(args: Array<String>) =
 private fun executeCommand(
     command: String,
     trim: Boolean = true,
-    redirectStderr: Boolean = false,
+    suppressOutput: Boolean = false,
     detach: Boolean = false,
 ): String {
-    val commandToExecute = if (redirectStderr) "$command 2>&1" else command
+    val commandToExecute = if (suppressOutput) "$command > /dev/null 2>&1" else command
 
     @OptIn(ExperimentalForeignApi::class)
     val fp = popen(commandToExecute, "r") ?: error("Failed to run command: $command")
@@ -85,7 +85,7 @@ private fun executeCommand(
     @OptIn(ExperimentalForeignApi::class)
     val status = pclose(fp)
     if (status != 0) {
-        error("Command `$command` failed with status $status${if (redirectStderr) ": $stdout" else ""}")
+        error("Command `$command` failed with status $status")
     }
 
     return if (trim) stdout.trimEnd() else stdout
@@ -237,8 +237,8 @@ private fun doNewSearch(args: Array<String>) {
                 println("$paddedResultNumber $highlightedLine")
             }
             if (isOpenCommand) {
-                val openCommand = "open $quotedPath &"
-                executeCommand(openCommand, redirectStderr = true, detach = true)
+                val openCommand = "open $quotedPath"
+                executeCommand(openCommand, suppressOutput = true, detach = true)
             }
         }
     }
